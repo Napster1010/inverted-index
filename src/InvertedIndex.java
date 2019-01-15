@@ -1,5 +1,7 @@
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Scanner;
@@ -68,65 +70,132 @@ public class InvertedIndex {
 			}
 		}
 
-		System.out.println();
+		String queryString = "";
+		while (true) {
+			System.out.println();
 
-		System.out.println("Enter your search query with AND, OR and NOT operations represented as below:");
-		System.out.println("AND - 'x'");
-		System.out.println("OR - '+'");
-		System.out.println("NOT - '!'");
-		System.out.println(
-				"Represent the words in the query string as numbers according to the below mentioned mapping: ");
-		// Search Queries input
-		for (int i = 0; i < wordsArr.length; i++) {
-			System.out.println(wordsArr[i] + " - '" + (i + 1) + "'");
-		}
-		System.out.println();
+			System.out.println(
+					"Enter your search query with AND, OR and NOT operations represented as below or enter 0 to exit:");
+			System.out.println("AND - 'x'");
+			System.out.println("OR - '+'");
+			System.out.println("NOT - '!'");
+			System.out.println(
+					"Represent the words in the query string as numbers according to the below mentioned mapping: ");
+			// Search Queries input
+			for (int i = 0; i < wordsArr.length; i++) {
+				System.out.println(wordsArr[i] + " - '" + (i + 1) + "'");
+			}
+			System.out.println();
 
-		String queryString = scanner.next();
-		LinkedList<Integer> resultPostingList = new LinkedList<>();
-		LinkedList<Integer> currentTemp = new LinkedList<>();
-		for (int i = 0; i < queryString.length() - 1; i++) {
-			switch (queryString.charAt(i)) {
-			case '+':
-				computeOr();
-				break;
-
-			case 'x':
-				computeAnd();
-				break;
-
-			case '!':
-				LinkedList<Integer> notResult = computeNot(
-						invertedIndex.get(wordsArr[Integer.parseInt(String.valueOf(queryString.charAt(i + 1))) - 1]),
-						searchDirectory.listFiles().length);
-				System.out.println(notResult);
-				break;
-
-			default:
+			queryString = scanner.next();
+			if (queryString.equals("0")) {
+				System.out.println("Pichha Lite teesko! Denge poi!");
 				break;
 			}
+
+			LinkedList<Integer> resultPostingList = new LinkedList<>();
+			LinkedList<Integer> currentTemp = null;
+			for (int i = 0; i < queryString.length() - 1; i++) {
+				switch (queryString.charAt(i)) {
+				case '+':
+					if (queryString.charAt(i + 1) == '!') {
+						LinkedList<Integer> notResult = computeNot(
+								invertedIndex
+										.get(wordsArr[Integer.parseInt(String.valueOf(queryString.charAt(i + 2))) - 1]),
+								searchDirectory.listFiles().length);
+						LinkedList<Integer> orResult = computeOr(notResult, currentTemp);
+						currentTemp = orResult;
+						i++;
+					} else {
+						LinkedList<Integer> orResult = computeOr(
+								invertedIndex
+										.get(wordsArr[Integer.parseInt(String.valueOf(queryString.charAt(i + 1))) - 1]),
+								currentTemp);
+						currentTemp = orResult;
+					}
+					break;
+
+				case 'x':
+					if (queryString.charAt(i + 1) == '!') {
+						LinkedList<Integer> notResult = computeNot(
+								invertedIndex
+										.get(wordsArr[Integer.parseInt(String.valueOf(queryString.charAt(i + 2))) - 1]),
+								searchDirectory.listFiles().length);
+						LinkedList<Integer> andResult = computeAnd(notResult, currentTemp);
+						currentTemp = andResult;
+						i++;
+					} else {
+						LinkedList<Integer> andResult = computeAnd(
+								invertedIndex
+										.get(wordsArr[Integer.parseInt(String.valueOf(queryString.charAt(i + 1))) - 1]),
+								currentTemp);
+						currentTemp = andResult;
+					}
+					break;
+
+				case '!':
+					LinkedList<Integer> notResult = computeNot(
+							invertedIndex
+									.get(wordsArr[Integer.parseInt(String.valueOf(queryString.charAt(i + 1))) - 1]),
+							searchDirectory.listFiles().length);
+					currentTemp = notResult;
+					break;
+
+				default:
+					if (currentTemp == null)
+						currentTemp = invertedIndex
+								.get(wordsArr[Integer.parseInt(String.valueOf(queryString.charAt(i))) - 1]);
+					break;
+				}
+			}
+			resultPostingList = currentTemp;
+
+			System.out.println("\n\n" + resultPostingList);
 		}
 	}
 
-	private static void computeAnd() {
+	private static LinkedList<Integer> computeOr(LinkedList<Integer> firstList, LinkedList<Integer> secondList) {
+		LinkedList<Integer> newList = new LinkedList<>();
+		newList.addAll(firstList);
+		for (int i : secondList) {
+			if (!newList.contains(i))
+				newList.add(i);
+		}
+		Collections.sort(newList);
 
+		return newList;
 	}
 
-	private static void computeOr() {
+	private static LinkedList<Integer> computeAnd(LinkedList<Integer> firstList, LinkedList<Integer> secondList) {
+		LinkedList<Integer> newList = new LinkedList<>();
+		Integer temp1;
+		Integer temp2;
+		int cnt1 = 0;
+		int cnt2 = 0;
 
+		while (cnt1 != firstList.size() && cnt2 != secondList.size()) {
+			temp1 = firstList.get(cnt1);
+			temp2 = secondList.get(cnt2);
+
+			if (temp1.equals(temp2)) {
+				newList.add(temp1);
+				cnt1++;
+				cnt2++;
+			} else if (temp1 < temp2) {
+				cnt1++;
+			} else {
+				cnt2++;
+			}
+		}
+
+		return newList;
 	}
 
 	private static LinkedList<Integer> computeNot(LinkedList<Integer> currentPostingList, int totalDocuments) {
 		LinkedList<Integer> newList = new LinkedList<>();
-		for (int i = 0; i < currentPostingList.size() - 1; i++) {
-			for (int j = (currentPostingList.get(i) + 1); j <= (currentPostingList.get(i + 1) - 1); j++) {
-				newList.add(j);
-			}
-		}
-
-		int diff = totalDocuments - currentPostingList.getLast();
-		for (int j = currentPostingList.getLast() + 1; j <= totalDocuments; j++) {
-			newList.add(j);
+		for (int i = 1; i <= totalDocuments; i++) {
+			if (!currentPostingList.contains(i))
+				newList.add(i);
 		}
 
 		return newList;
